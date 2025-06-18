@@ -1,83 +1,84 @@
+
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Admin Panel - Dating Bot</title>
+    <title>Панель управления ботом</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; }
-        .stats { background: #f5f5f5; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-        .stat-card { display: inline-block; background: white; padding: 10px 20px; margin-right: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .action-form { display: inline; }
-        .btn { padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; }
-        .btn:hover { background: #bd2130; }
-        .photo-cell { max-width: 100px; }
-        .photo { max-width: 80px; max-height: 80px; }
+        button { margin-right: 5px; }
+        canvas { max-width: 600px; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Панель управления ботом</h1>
-        <div>
-            <strong>Пользователь:</strong> {{ current_user }} |
-            <a href="{{ url_for('admin_dashboard') }}">Обновить</a>
-        </div>
-    </div>
+    <h1>Панель управления ботом</h1>
+    <p>Пользователь: {{ current_user }} | <a href="{{ url_for('admin_dashboard') }}">Обновить</a> | <a href="{{ url_for('test_users') }}">Тестировка</a></p>
 
-    <div class="stats">
-        <div class="stat-card">
-            <strong>Всего пользователей:</strong> {{ stats.total_users }}
-        </div>
-        <div class="stat-card">
-            <strong>С фото:</strong> {{ stats.profiles_with_photo }}
-        </div>
-        <div class="stat-card">
-            <strong>Активных:</strong> {{ stats.active_profiles }}
-        </div>
-    </div>
+    <h2>Статистика</h2>
+    <canvas id="statsChart"></canvas>
+    <ul>
+        <li>Всего пользователей: {{ stats.total_users }}</li>
+        <li>С фото: {{ stats.profiles_with_photo }}</li>
+        <li>Активных: {{ stats.active_profiles }}</li>
+    </ul>
 
+    <h2>Пользователи</h2>
     <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Имя</th>
-                <th>Возраст</th>
-                <th>Пол</th>
-                <th>Фото</th>
-                <th>Лайки</th>
-                <th>Дизлайки</th>
-                <th>Статус</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user_id, user in users.items() %}
-            <tr>
-                <td>{{ user_id }}</td>
-                <td>{{ user.name }}</td>
-                <td>{{ user.age }}</td>
-                <td>{{ user.gender }}</td>
-                <td class="photo-cell">
-                    {% if user.photo_id %}
-                    <span>✅ Есть</span>
-                    {% else %} ❌ Нет {% endif %}
-                </td>
-                <td>{{ user.likes|length }}</td>
-                <td>{{ user.dislikes|length }}</td>
-                <td>{{ user.state }}</td>
-                <td>
-                    <form class="action-form" method="POST" action="/delete_user">
-                        <input type="hidden" name="user_id" value="{{ user_id }}">
-                        <button type="submit" class="btn">Удалить</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+        <tr>
+            <th>ID</th><th>Имя</th><th>Возраст</th><th>Пол</th><th>Фото</th><th>Лайки</th><th>Дизлайки</th><th>Статус</th><th>Блокировка</th><th>Виртуальный</th><th>Действия</th>
+        </tr>
+        {% for user_id, user in users.items() %}
+        <tr>
+            <td>{{ user_id }}</td>
+            <td>{{ user.name }}</td>
+            <td>{{ user.age }}</td>
+            <td>{{ user.gender }}</td>
+            <td>{% if user.photo_id %}✅ Есть{% else %}❌ Нет{% endif %}</td>
+            <td>{{ user.likes|length }}</td>
+            <td>{{ user.dislikes|length }}</td>
+            <td>{{ user.state }}</td>
+            <td>{{ '🚫 Заблокирован' if user.is_blocked else '✅ Активен' }}</td>
+            <td>{{ '🤖 Да' if user.is_virtual else '👤 Нет' }}</td>
+            <td>
+                <a href="{{ url_for('view_user', user_id=user_id) }}">👁 Просмотр</a>
+                <form action="{{ url_for('toggle_block_user') }}" method="post" style="display:inline;">
+                    {{ block_form.csrf_token }}
+                    {{ block_form.user_id(value=user_id) }}
+                    <button type="submit">{{ 'Разблокировать' if user.is_blocked else 'Заблокировать' }}</button>
+                </form>
+                <form action="{{ url_for('delete_user') }}" method="post" style="display:inline;">
+                    {{ delete_form.csrf_token }}
+                    {{ delete_form.user_id(value=user_id) }}
+                    <button type="submit">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
     </table>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const ctx = document.getElementById('statsChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Всего пользователей', 'С фото', 'Активных'],
+                datasets: [{
+                    label: 'Статистика',
+                    data: [{{ stats.total_users }}, {{ stats.profiles_with_photo }}, {{ stats.active_profiles }}],
+                    backgroundColor: ['#36A2EB', '#FF6384', '#FFCE56'],
+                    borderColor: ['#36A2EB', '#FF6384', '#FFCE56'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    </script>
 </body>
 </html>
